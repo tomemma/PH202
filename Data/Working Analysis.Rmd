@@ -1,0 +1,209 @@
+---
+title: "PH 202B"
+author: "Emma Tome"
+date: "3/20/2017"
+output: 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/Users/Emma/Documents/2017 Spring/ESPM 254/Term Paper/Data")
+install.packages('ineq')
+
+CES_ZIP <- read.csv("CES_ZIP.csv")
+LIS <- read.csv("LIS_ZIP.csv")
+POV <- read.csv("POV.csv")
+NEM <- read.csv("NEM_ZIP.csv")
+AGG_INC <- read.csv("AGG_INC.csv")
+  AGG_INC$EST <- as.numeric(AGG_INC$EST)
+  AGG_INC$INFO <- as.character(AGG_INC$INFO)
+  AGG_INC$SE <- as.numeric(AGG_INC$SE)
+  AGG_INC$CENSUS <- as.numeric(AGG_INC$CENSUS)
+  colnames(AGG_INC) <- c("CENSUS", "INFO", "AGG_INC_EST", "AGG_INC_SE")
+CES_CENSUS <- read.csv("CES-CENSUS.csv")
+
+LIS_CES <- merge(LIS, CES, by.x = "Zip", by.y = "ZIP", all = TRUE)
+LIS_POV <- merge(LIS, POV, by.x = "Zip", by.y = "ZIP", all = TRUE)
+NEM_CES <- merge(NEM, CES, by.x ="ZIP", by.y = "ZIP", all = TRUE)
+NEM_POV <- merge(NEM, POV, by.x = "ZIP", by.y = "ZIP", all = TRUE)
+CES_CENSUS <- merge(CES_CENSUS, AGG_INC, by.x= "CENSUS", by.y = "CENSUS", all = TRUE)
+
+NEM_CES$All_Solar[is.na(NEM_CES$All_Solar)]<- 0
+NEM_CES$CES_AVG[is.na(NEM_CES$CES_AVG)]<- 0
+
+LIS_CES$Solar[is.na(LIS_CES$Solar)] <- 0
+LIS_CES$CES_AVG[is.na(LIS_CES$CES_AVG)] <- 0
+
+plot(LIS_CES$CES_AVG, LIS_CES$Solar)
+plot(LIS_POV$POV_AVG, LIS_POV$Solar)
+plot(NEM_CES$CES_AVG, NEM_CES$All_Solar)
+plot(NEM_POV$POV_AVG, NEM_POV$All_Solar)
+
+# Create scatter plot with two different colors
+
+ols(NEM_POV$POV_AVG, NEM_POV$All_Solar)
+ols(NEM_CES$CES_AVG, NEM_CES$All_Solar)
+
+#can OLS ignore NA values or should I just write them over with zeros?
+
+ols(LIS_CES$CES_AVG, LIS_CES$Solar)
+```
+
+```{r OLS Function}
+
+ols <- function(y,X) {
+  b <- solve(crossprod(X))%*%t(X)%*%y
+  return(b)
+}
+
+s2 <- function(y,X) {
+  n <- nrow(X)
+  k <- ncol(X)
+  df <- n-k
+  b <- solve(crossprod(X))%*%t(X)%*%y
+  e <- y - X%*%b
+  RSS <- crossprod(e)
+  yhat <- y - e
+  s2 <- crossprod(e)/(n-k)
+  Ruc <- 1- crossprod(e)/crossprod(y)
+  Rc <- 1 - crossprod(e)/crossprod(y-mean(y))
+  Rad <- 1- ((n-1)/(n-k))*(1-Rc)
+  SIC <- log(crossprod(e)/(n))+((k/n)*log(n))
+  AIC <- log(crossprod(e)/n)+((2*k/n))
+  cheese <-cbind(n, df, s2 ,Ruc ,Rc ,Rad ,AIC, SIC, RSS)
+  colnames(cheese) <- c("N","df","$s^2$","$R^2_{uc}$","$R^2_c$","$R^2_{ad}$","AIC","SIC","RSS") 
+  return(cheese)
+}
+```
+
+## Calculating Inequality Measures
+```{r}
+require(ineq)
+ineq <- matrix(0, nrow(LIS_CES), 3)
+colnames(ineq) <- c("ZIP", "Theil", "GINI")
+
+for(i in 1:nrow(LIS_CES)){
+  zip <- LIS_CES[i,1] # get zip code of interest
+  cens_inc <- as.matrix(AGG_INC_CES[AGG_INC_CES$ZIP == zip, "AGG_INC_EST"]) #subset out census tract info in this zip code
+  ineq[i,1] <- zip
+  ineq[i,2] <- Theil(cens_inc, na.rm = TRUE)
+  ineq[i,3] <- Gini(cens_inc, na.rm = TRUE)}
+```
+
+```{r Plotting inequality vs. LMI Solar}
+LIS_ineq <- merge(LIS, ineq, by.x = "Zip", by.y = "ZIP", all = FALSE)
+NEM_ineq <- merge(NEM, ineq, by.x = "ZIP", by.y = "ZIP")
+plot(LIS_ineq$GINI, LIS_ineq$Solar)
+plot(LIS_ineq$Theil, LIS_ineq$Solar)
+plot(NEM_ineq$GINI, NEM_ineq$All_Solar)
+plot(NEM_ineq$Theil, NEM_ineq$All_Solar)
+```
+
+``` {r plots}
+
+
+
+library(reshape2)
+library(dplyr)
+ggrf <- read.csv("ggrf_sumdata.csv")
+ggrf <- ggrf %>% select(Total.Dollars.Implemented, Program.Category, Benefiting.Disadvantaged.Communities, Within.Disadvantaged.Communities)
+head(ggrf)
+##ggplot(ggrf, aes(x=   y=Total.Dollars.Implemented  Program.Category)
+
+```
+
+``` {r reading all the stuffz}
+library(stringr)
+library(dplyr)
+library(treemapify)
+library(reshape2)
+
+ggrf_all <- read.csv("ggrf_rawdata.csv")
+
+ggrf_all <- rename(ggrf_all, GHG           = GHG.Reductions.MTCO2e..See.Footnote.1)
+ggrf_all <- rename(ggrf_all, ProjNumBenDis = X..of.Projects.Benefitting.Disadvantaged.Communities)
+ggrf_all <- rename(ggrf_all, ProjNumInDis  = X..of.Projects.Within.Disadvantaged.Communities)
+ggrf_all <- rename(ggrf_all, DollarTot     = Total.Dollars.Implemented)
+ggrf_all <- rename(ggrf_all, DollarInDis   = Dollars.Within.Disadvantaged.Communities)
+ggrf_all <- rename(ggrf_all, DollarBenDis  = Dollars.Benefiting.Disadvantaged.Communities)
+ggrf_all <- rename(ggrf_all, ProjYears     = Project.Life.Years.)
+
+ggrf_all$GHG          <- as.numeric(gsub(",","",ggrf_all$GHG))
+ggrf_all$DollarTot    <- as.numeric(gsub(",","",ggrf_all$DollarTot))
+ggrf_all$DollarInDis  <- as.numeric(gsub(",","",ggrf_all$DollarInDis))
+ggrf_all$DollarBenDis <- as.numeric(gsub(",","",ggrf_all$DollarBenDis))
+
+# TODO: Figure out why some benefit dollars are less than dollars within
+ggrf_all <- ggrf_all %>% filter(ggrf_all$DollarBenDis>=ggrf_all$DollarInDis)
+
+ShrinkCoben <- function(x){
+  temp <- ""
+  if(is.na(x))
+    return("")
+  if(str_detect(x, "criteria pollutant"))
+    temp <- paste(temp,"criteria pollutant")
+  if (str_detect(x, "air quality"))
+    temp <- temp <- paste(temp,"air quality")
+  if (str_detect(x, "health"))
+    temp <- temp <- paste(temp,"health")
+  temp
+}
+
+ggrf_all <- ggrf_all %>% rowwise() %>% mutate(Cobens=ShrinkCoben(Cobens)) %>% ungroup()
+
+
+ggrf_all %>% group_by(Cobens) %>% 
+  summarize(
+    count        = n(), 
+    DollarTot    = sum(DollarTot),
+    DollarInDis  = sum(DollarInDis),
+    DollarBenDis = sum(DollarBenDis)
+  ) %>%
+  select(Cobens, DollarTot, DollarInDis, DollarBenDis)
+
+
+x <- ggrf_all %>% group_by(Agency,Program) %>% 
+  summarize(
+    TotDoll    = sum(DollarTot), 
+    InDisDoll  = sum(DollarInDis), 
+    BenDisDoll = sum(DollarBenDis),
+    GHG = sum(GHG)
+  ) %>%
+  mutate(
+    TotDoll    = TotDoll - BenDisDoll,
+    BenDisDoll = BenDisDoll - InDisDoll
+  )
+
+x <- melt(x, id.vars=c("Agency", "Program"))
+#x <- melt(x, id.vars=c("Program"))
+x$variable <- factor(x$variable, levels = c("TotDoll", "BenDisDoll", "InDisDoll"))
+
+levels(x$variable)[levels(x$variable)=="TotDoll"]    <- "Outside DACs"
+levels(x$variable)[levels(x$variable)=="BenDisDoll"] <- "Benefitting DACs"
+levels(x$variable)[levels(x$variable)=="InDisDoll"]  <- "Inside DACs"
+
+y <- x %>% filter(variable!="GHG") %>% mutate(value=ifelse(value==0,1,value))
+
+
+png("GGRF.png", width = 11, height = 8.5, res = 300, units = "in")
+p <- ggplot(y, aes(area = value, fill = variable, label = variable, subgroup = Program), color="white")+geom_treemap()
+  #p <- p +  facet_wrap(~Agency) 
+p <- p + labs(fill = "Funding Location") 
+p <- p + ggtitle("Greenhouse Gas Reduction Fund Investments") 
+p <- p + geom_treemap_subgroup_border(colour = "white")
+p <- p + scale_fill_manual(values = c("#D6D1D1", "#91D792", "#177419"))
+p + geom_treemap_subgroup_text(
+    place    = "topleft", 
+    #grow     = T, 
+    #alpha    = 0.5, 
+    colour   = "white",
+    fontface = "bold",
+    min.size = 0, 
+    size     = 10,
+    reflow   = TRUE
+  ) 
+dev.off()
+
+
+```       
+       
